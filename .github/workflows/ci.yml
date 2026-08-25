@@ -1,12 +1,30 @@
-name: CI
-on: [push, pull_request]
+name: state-store-ci
+
+on:
+  pull_request:
+  push:
+    branches: [main, "product/**"]
+
+permissions:
+  contents: read
+
 jobs:
-  test:
+  verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '18'
-      - run: npm ci
-      - run: npm test
+          node-version: '22'
+      - name: Install
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: TypeScript build
+        run: npm run build
+      - name: Tests
+        run: npm test -- --runInBand
+      - name: Production dependency audit
+        run: npm audit --omit=dev --audit-level=high
+      - name: Build image
+        run: docker build -t sky-state-store:${{ github.sha }} .
+      - name: Verify non-root image
+        run: test "$(docker run --rm --entrypoint id sky-state-store:${{ github.sha }} -u)" != "0"
